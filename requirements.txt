@@ -1,0 +1,7 @@
+# Wymagane
+sounddevice>=0.4.6
+numpy>=1.24.0
+miniupnpc>=2.2.0
+
+# Opcjonalne – kompresja Opus (zalecane, zmniejsza zużycie pasma ~10x)
+# opuslib>=3.0.1
