@@ -123,9 +123,11 @@ class VoiceNetwork:
 
         # Wyślij BYE do wszystkich peerów
         with self._peers_lock:
-            for addr in list(self._peers.keys()):
-                self._send_packet(PacketType.BYE, b"", addr)
+            addrs = list(self._peers.keys())
             self._peers.clear()
+
+        for addr in addrs:
+            self._send_packet(PacketType.BYE, b"", addr)
 
         if self._socket:
             self._socket.close()
@@ -242,8 +244,8 @@ class VoiceNetwork:
                     self.on_peer_disconnected(peer)
 
         elif ptype == PacketType.AUDIO:
-            with self._peers_lock:
-                peer = self._peers.get(addr)
+            # Szybka ścieżka – bez locka dla audio (odczyt dict jest thread-safe w CPython)
+            peer = self._peers.get(addr)
             if peer:
                 peer.last_seen = time.time()
                 peer.packets_received += 1
@@ -264,8 +266,7 @@ class VoiceNetwork:
             self._send_packet(PacketType.PONG, payload, addr)
 
         elif ptype == PacketType.PONG:
-            with self._peers_lock:
-                peer = self._peers.get(addr)
+            peer = self._peers.get(addr)
             if peer and payload:
                 try:
                     sent_ts = struct.unpack("!q", payload)[0]
@@ -274,8 +275,7 @@ class VoiceNetwork:
                     pass
 
         elif ptype == PacketType.KEEPALIVE:
-            with self._peers_lock:
-                peer = self._peers.get(addr)
+            peer = self._peers.get(addr)
             if peer:
                 peer.last_seen = time.time()
 
@@ -284,39 +284,50 @@ class VoiceNetwork:
     # ------------------------------------------------------------------
     def _register_peer(self, addr: tuple[str, int], name: str):
         """Rejestruje nowego peera."""
+        new_peer = None
         with self._peers_lock:
             if addr not in self._peers:
                 peer = Peer(address=addr, name=name, last_seen=time.time())
                 self._peers[addr] = peer
+                new_peer = peer
                 logger.info("Nowy peer: %s @ %s:%d", name, *addr)
-                if self.on_peer_connected:
-                    self.on_peer_connected(peer)
             else:
                 self._peers[addr].last_seen = time.time()
                 self._peers[addr].name = name
+        # Callback POZA lockiem – zapobiega deadlockowi z GUI
+        if new_peer and self.on_peer_connected:
+            self.on_peer_connected(new_peer)
 
     def _keepalive_loop(self):
         """Wysyła keepalive i sprawdza timeout peerów."""
         while self._running:
             time.sleep(3)
 
+            alive_addrs = []
+            dead_peers_list = []
+
             with self._peers_lock:
-                dead_peers = []
+                dead_addrs = []
                 for addr, peer in self._peers.items():
                     if not peer.is_alive(timeout=15.0):
-                        dead_peers.append(addr)
+                        dead_addrs.append(addr)
                     else:
-                        # Wyślij keepalive
-                        self._send_packet(PacketType.KEEPALIVE, b"", addr)
-                        # Ping do pomiaru latencji
-                        ts_bytes = struct.pack("!q", int(time.time() * 1000))
-                        self._send_packet(PacketType.PING, ts_bytes, addr)
+                        alive_addrs.append(addr)
 
-                for addr in dead_peers:
+                for addr in dead_addrs:
                     peer = self._peers.pop(addr)
+                    dead_peers_list.append(peer)
                     logger.info("Peer %s – timeout.", peer.name)
-                    if self.on_peer_disconnected:
-                        self.on_peer_disconnected(peer)
+
+            # Callbacki i wysyłanie POZA lockiem
+            for peer in dead_peers_list:
+                if self.on_peer_disconnected:
+                    self.on_peer_disconnected(peer)
+
+            for addr in alive_addrs:
+                self._send_packet(PacketType.KEEPALIVE, b"", addr)
+                ts_bytes = struct.pack("!q", int(time.time() * 1000))
+                self._send_packet(PacketType.PING, ts_bytes, addr)
 
     def get_peers(self) -> list[Peer]:
         """Zwraca listę podłączonych peerów."""
