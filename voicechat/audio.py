@@ -90,8 +90,8 @@ class AudioEngine:
         self._muted = False
 
         # Poziom głośności wejścia/wyjścia (0.0 – 1.0)
-        self.input_volume: float = 1.0
-        self.output_volume: float = 1.0
+        self.input_volume: float = 10.0
+        self.output_volume: float = 10.0
 
         # Callback do informowania GUI o poziomie sygnału
         self.level_callback = None
