@@ -29,6 +29,7 @@ class PacketType(IntEnum):
     AUDIO = 1        # Dane audio
     PING = 2         # Ping (pomiar latencji)
     PONG = 3         # Odpowiedź na ping
+    TEXT = 5         # Wiadomość tekstowa
     HELLO = 10       # Inicjacja połączenia
     HELLO_ACK = 11   # Potwierdzenie połączenia
     BYE = 20         # Rozłączenie
@@ -59,6 +60,7 @@ class VoiceNetwork:
         on_audio_received=None,
         on_peer_connected=None,
         on_peer_disconnected=None,
+        on_text_received=None,
     ):
         """
         Args:
@@ -66,11 +68,13 @@ class VoiceNetwork:
             on_audio_received: callback(audio_data: bytes, peer_addr)
             on_peer_connected: callback(peer: Peer)
             on_peer_disconnected: callback(peer: Peer)
+            on_text_received: callback(text: str, peer_name: str, peer_addr)
         """
         self.local_port = local_port
         self.on_audio_received = on_audio_received
         self.on_peer_connected = on_peer_connected
         self.on_peer_disconnected = on_peer_disconnected
+        self.on_text_received = on_text_received
 
         self._socket: socket.socket | None = None
         self._running = False
@@ -171,6 +175,18 @@ class VoiceNetwork:
 
         for addr in addrs:
             self._send_packet(PacketType.AUDIO, encoded_audio, addr)
+
+    def send_text(self, text: str):
+        """Wysyła wiadomość tekstową do wszystkich podłączonych peerów."""
+        if not self._running or not self._peers:
+            return
+
+        payload = text.encode("utf-8")
+        with self._peers_lock:
+            addrs = list(self._peers.keys())
+
+        for addr in addrs:
+            self._send_packet(PacketType.TEXT, payload, addr)
 
     # ------------------------------------------------------------------
     # Budowanie i wysyłanie pakietów
@@ -278,6 +294,14 @@ class VoiceNetwork:
             peer = self._peers.get(addr)
             if peer:
                 peer.last_seen = time.time()
+
+        elif ptype == PacketType.TEXT:
+            peer = self._peers.get(addr)
+            if peer:
+                peer.last_seen = time.time()
+                text = payload.decode("utf-8", errors="replace")
+                if self.on_text_received:
+                    self.on_text_received(text, peer.name, addr)
 
     # ------------------------------------------------------------------
     # Zarządzanie peerami

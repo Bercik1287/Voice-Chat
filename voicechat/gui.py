@@ -31,8 +31,8 @@ class VoiceChatGUI:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("Kodama")
-        self.root.geometry("700x550")
-        self.root.minsize(600, 450)
+        self.root.geometry("750x900")
+        self.root.minsize(750, 900)
         self.root.configure(bg=BG_DARK)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
@@ -134,12 +134,18 @@ class VoiceChatGUI:
         )
         self._status_label.pack(side=tk.RIGHT)
 
-        # --- Sekcja konfiguracji ---
-        config_frame = ttk.Frame(self.root, style="Dark.TFrame")
-        config_frame.pack(fill=tk.X, padx=16, pady=8)
+        # --- Sekcja konfiguracji + lista peerów obok siebie ---
+        middle_frame = ttk.Frame(self.root, style="Dark.TFrame")
+        middle_frame.pack(fill=tk.BOTH, expand=True, padx=16, pady=8)
+        middle_frame.columnconfigure(0, weight=1)
+        middle_frame.columnconfigure(1, weight=1)
+
+        # ===== Lewa kolumna – konfiguracja =====
+        left_panel = ttk.Frame(middle_frame, style="Dark.TFrame")
+        left_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
 
         # Nazwa użytkownika
-        name_frame = ttk.Frame(config_frame, style="Dark.TFrame")
+        name_frame = ttk.Frame(left_panel, style="Dark.TFrame")
         name_frame.pack(fill=tk.X, pady=2)
 
         ttk.Label(name_frame, text="Nazwa:", style="Dark.TLabel").pack(
@@ -191,8 +197,8 @@ class VoiceChatGUI:
         upnp_cb.pack(side=tk.LEFT)
 
         # --- Przyciski Start / Stop ---
-        btn_frame = ttk.Frame(self.root, style="Dark.TFrame")
-        btn_frame.pack(fill=tk.X, padx=16, pady=4)
+        btn_frame = ttk.Frame(left_panel, style="Dark.TFrame")
+        btn_frame.pack(fill=tk.X, pady=4)
 
         self._start_btn = ttk.Button(
             btn_frame,
@@ -221,8 +227,8 @@ class VoiceChatGUI:
         self._mute_btn.pack(side=tk.LEFT, padx=(0, 8))
 
         # --- Łączenie z peerem ---
-        connect_frame = ttk.Frame(self.root, style="Dark.TFrame")
-        connect_frame.pack(fill=tk.X, padx=16, pady=4)
+        connect_frame = ttk.Frame(left_panel, style="Dark.TFrame")
+        connect_frame.pack(fill=tk.X, pady=4)
 
         ttk.Label(connect_frame, text="Połącz z:", style="Dark.TLabel").pack(
             side=tk.LEFT, padx=(0, 8)
@@ -253,20 +259,23 @@ class VoiceChatGUI:
 
         # --- Info UPnP ---
         self._upnp_info = ttk.Label(
-            self.root,
+            left_panel,
             text="",
             style="Dark.TLabel",
         )
-        self._upnp_info.pack(fill=tk.X, padx=16, pady=2)
+        self._upnp_info.pack(fill=tk.X, pady=2)
 
-        # --- Lista peerów ---
+        # ===== Prawa kolumna – lista peerów =====
+        right_panel = ttk.Frame(middle_frame, style="Dark.TFrame")
+        right_panel.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
+
         peers_label = ttk.Label(
-            self.root, text="Połączeni rozmówcy:", style="Dark.TLabel"
+            right_panel, text="Połączeni rozmówcy:", style="Dark.TLabel"
         )
-        peers_label.pack(fill=tk.X, padx=16, pady=(8, 2))
+        peers_label.pack(fill=tk.X, pady=(0, 2))
 
-        peers_frame = tk.Frame(self.root, bg=BG_MID, relief=tk.FLAT, bd=1)
-        peers_frame.pack(fill=tk.BOTH, expand=True, padx=16, pady=(0, 4))
+        peers_frame = tk.Frame(right_panel, bg=BG_MID, relief=tk.FLAT, bd=1)
+        peers_frame.pack(fill=tk.BOTH, expand=True)
 
         self._peers_listbox = tk.Listbox(
             peers_frame,
@@ -280,6 +289,66 @@ class VoiceChatGUI:
             highlightthickness=0,
         )
         self._peers_listbox.pack(fill=tk.BOTH, expand=True)
+
+        # --- Chat tekstowy ---
+        chat_frame = ttk.Frame(self.root, style="Dark.TFrame")
+        chat_frame.pack(fill=tk.BOTH, expand=True, padx=16, pady=(0, 4))
+
+        chat_label = ttk.Label(
+            chat_frame, text="💬 Chat:", style="Dark.TLabel"
+        )
+        chat_label.pack(fill=tk.X, pady=(0, 2))
+
+        chat_text_frame = tk.Frame(chat_frame, bg=BG_MID, relief=tk.FLAT, bd=1)
+        chat_text_frame.pack(fill=tk.BOTH, expand=True)
+
+        self._chat_display = tk.Text(
+            chat_text_frame,
+            bg=BG_MID,
+            fg=FG_TEXT,
+            font=("Segoe UI", 10),
+            relief=tk.FLAT,
+            bd=4,
+            highlightthickness=0,
+            wrap=tk.WORD,
+            state=tk.DISABLED,
+            cursor="arrow",
+        )
+        chat_scrollbar = ttk.Scrollbar(
+            chat_text_frame, orient=tk.VERTICAL, command=self._chat_display.yview
+        )
+        self._chat_display.configure(yscrollcommand=chat_scrollbar.set)
+        chat_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self._chat_display.pack(fill=tk.BOTH, expand=True)
+
+        # Tagi kolorów
+        self._chat_display.tag_configure("username", foreground=ACCENT, font=("Segoe UI", 10, "bold"))
+        self._chat_display.tag_configure("own", foreground=ACCENT_GREEN, font=("Segoe UI", 10, "bold"))
+        self._chat_display.tag_configure("system", foreground=FG_DIM, font=("Segoe UI", 9, "italic"))
+
+        # Pole wejściowe chatu
+        chat_input_frame = ttk.Frame(chat_frame, style="Dark.TFrame")
+        chat_input_frame.pack(fill=tk.X, pady=(4, 0))
+
+        self._chat_input = tk.Entry(
+            chat_input_frame,
+            bg=BG_LIGHT,
+            fg=FG_TEXT,
+            insertbackground=FG_TEXT,
+            font=("Segoe UI", 10),
+            relief=tk.FLAT,
+        )
+        self._chat_input.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 4))
+        self._chat_input.bind("<Return>", self._on_chat_send)
+
+        self._chat_send_btn = ttk.Button(
+            chat_input_frame,
+            text="Wyślij",
+            style="Accent.TButton",
+            command=self._on_chat_send,
+            state=tk.DISABLED,
+        )
+        self._chat_send_btn.pack(side=tk.RIGHT)
 
         # --- Wskaźniki poziomu audio ---
         levels_frame = ttk.Frame(self.root, style="Dark.TFrame")
@@ -426,6 +495,7 @@ class VoiceChatGUI:
                     on_audio_received=self._on_audio_from_network,
                     on_peer_connected=self._on_peer_connected,
                     on_peer_disconnected=self._on_peer_disconnected,
+                    on_text_received=self._on_text_from_network,
                 )
                 actual_port = self.network.start(username=self._username)
 
@@ -503,6 +573,7 @@ class VoiceChatGUI:
         self._stop_btn.configure(state=tk.NORMAL)
         self._mute_btn.configure(state=tk.NORMAL)
         self._connect_btn.configure(state=tk.NORMAL)
+        self._chat_send_btn.configure(state=tk.NORMAL)
         self._status_label.configure(text=f"🟢 Aktywny (port {port})")
         self._set_status(f"Nasłuchuję na porcie {port}")
 
@@ -527,6 +598,7 @@ class VoiceChatGUI:
         self._stop_btn.configure(state=tk.DISABLED)
         self._mute_btn.configure(state=tk.DISABLED)
         self._connect_btn.configure(state=tk.DISABLED)
+        self._chat_send_btn.configure(state=tk.DISABLED)
         self._status_label.configure(text="⚪ Rozłączony")
         self._upnp_info.configure(text="")
         self._peers_listbox.delete(0, tk.END)
@@ -585,6 +657,10 @@ class VoiceChatGUI:
             0,
             lambda: self._set_status(f"Połączono z {peer.name} ({peer.address[0]}:{peer.address[1]})"),
         )
+        self.root.after(
+            0,
+            lambda: self._append_chat_message(f"{peer.name} dołączył do rozmowy", tag="system"),
+        )
 
     def _on_peer_disconnected(self, peer: Peer):
         """Peer się rozłączył."""
@@ -593,6 +669,49 @@ class VoiceChatGUI:
             0,
             lambda: self._set_status(f"{peer.name} rozłączył się"),
         )
+        self.root.after(
+            0,
+            lambda: self._append_chat_message(f"{peer.name} rozłączył się", tag="system"),
+        )
+
+    def _on_text_from_network(self, text: str, peer_name: str, addr):
+        """Odebrano wiadomość tekstową z sieci."""
+        self.root.after(
+            0,
+            lambda: self._append_chat_message(text, sender=peer_name),
+        )
+
+    # ------------------------------------------------------------------
+    # Chat tekstowy
+    # ------------------------------------------------------------------
+    def _on_chat_send(self, event=None):
+        """Wysyła wiadomość z pola wejściowego."""
+        text = self._chat_input.get().strip()
+        if not text:
+            return
+
+        self._chat_input.delete(0, tk.END)
+
+        if self.network:
+            self.network.send_text(text)
+
+        self._append_chat_message(text, sender=self._username, is_own=True)
+
+    def _append_chat_message(self, text: str, sender: str = "", is_own: bool = False, tag: str = ""):
+        """Dodaje wiadomość do okna chatu."""
+        self._chat_display.configure(state=tk.NORMAL)
+
+        if tag == "system":
+            self._chat_display.insert(tk.END, f"  {text}\n", "system")
+        elif sender:
+            name_tag = "own" if is_own else "username"
+            self._chat_display.insert(tk.END, f"{sender}: ", name_tag)
+            self._chat_display.insert(tk.END, f"{text}\n")
+        else:
+            self._chat_display.insert(tk.END, f"{text}\n")
+
+        self._chat_display.configure(state=tk.DISABLED)
+        self._chat_display.see(tk.END)
 
     # ------------------------------------------------------------------
     # Aktualizacja GUI
