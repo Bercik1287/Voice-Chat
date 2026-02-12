@@ -68,6 +68,8 @@ class AudioEngine:
         send_callback=None,
         sample_rate: int = SAMPLE_RATE,
         channels: int = CHANNELS,
+        input_device: int | None = None,
+        output_device: int | None = None,
     ):
         """
         Args:
@@ -75,10 +77,14 @@ class AudioEngine:
                            do wysłania przez sieć: callback(encoded_bytes).
             sample_rate: Częstotliwość próbkowania.
             channels: Liczba kanałów (1 = mono).
+            input_device: Indeks urządzenia wejściowego (None = domyślne).
+            output_device: Indeks urządzenia wyjściowego (None = domyślne).
         """
         self.sample_rate = sample_rate
         self.channels = channels
         self.send_callback = send_callback
+        self.input_device = input_device
+        self.output_device = output_device
 
         self.codec = AudioCodec(sample_rate, channels)
 
@@ -114,6 +120,7 @@ class AudioEngine:
             dtype=DTYPE,
             blocksize=FRAME_SIZE,
             callback=self._input_callback,
+            device=self.input_device,
         )
 
         self._output_stream = sd.OutputStream(
@@ -122,6 +129,7 @@ class AudioEngine:
             dtype=DTYPE,
             blocksize=FRAME_SIZE,
             callback=self._output_callback,
+            device=self.output_device,
         )
 
         self._input_stream.start()

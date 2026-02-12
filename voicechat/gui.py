@@ -26,11 +26,11 @@ ACCENT_YELLOW = "#f9e2af"
 
 
 class VoiceChatGUI:
-    """Główne okno aplikacji Voice Chat."""
+    """Główne okno aplikacji Kodama."""
 
     def __init__(self):
         self.root = tk.Tk()
-        self.root.title("🎙️ Voice Chat P2P")
+        self.root.title("Kodama")
         self.root.geometry("700x550")
         self.root.minsize(600, 450)
         self.root.configure(bg=BG_DARK)
@@ -125,7 +125,7 @@ class VoiceChatGUI:
         header = ttk.Frame(self.root, style="Dark.TFrame")
         header.pack(fill=tk.X, padx=16, pady=(12, 4))
 
-        ttk.Label(header, text="🎙️ Voice Chat P2P", style="Title.TLabel").pack(
+        ttk.Label(header, text="Kodama", style="Title.TLabel").pack(
             side=tk.LEFT
         )
 
@@ -304,6 +304,41 @@ class VoiceChatGUI:
         levels_frame.columnconfigure(1, weight=1)
         levels_frame.columnconfigure(3, weight=1)
 
+        # --- Wybór urządzeń audio ---
+        devices_frame = ttk.Frame(self.root, style="Dark.TFrame")
+        devices_frame.pack(fill=tk.X, padx=16, pady=(2, 4))
+
+        ttk.Label(devices_frame, text="🎤 Wejście:", style="Dark.TLabel").pack(
+            side=tk.LEFT, padx=(0, 4)
+        )
+        self._input_device_var = tk.StringVar()
+        self._input_device_combo = ttk.Combobox(
+            devices_frame,
+            textvariable=self._input_device_var,
+            state="readonly",
+            width=30,
+            font=("Segoe UI", 9),
+        )
+        self._input_device_combo.pack(side=tk.LEFT, padx=(0, 16))
+
+        ttk.Label(devices_frame, text="🔊 Wyjście:", style="Dark.TLabel").pack(
+            side=tk.LEFT, padx=(0, 4)
+        )
+        self._output_device_var = tk.StringVar()
+        self._output_device_combo = ttk.Combobox(
+            devices_frame,
+            textvariable=self._output_device_var,
+            state="readonly",
+            width=30,
+            font=("Segoe UI", 9),
+        )
+        self._output_device_combo.pack(side=tk.LEFT)
+
+        # Załaduj listę urządzeń
+        self._input_devices: list[dict] = []
+        self._output_devices: list[dict] = []
+        self._refresh_audio_devices()
+
         # --- Pasek statusu ---
         status_bar = tk.Frame(self.root, bg=BG_MID, height=28)
         status_bar.pack(fill=tk.X, side=tk.BOTTOM)
@@ -440,8 +475,12 @@ class VoiceChatGUI:
                         upnp_info = f"ℹ️ LAN: {local_ip}:{actual_port}  (UPnP wyłączone)"
 
                 # 3. Audio
+                input_dev = self._get_selected_input_device()
+                output_dev = self._get_selected_output_device()
                 self.audio = AudioEngine(
                     send_callback=self.network.send_audio,
+                    input_device=input_dev,
+                    output_device=output_dev,
                 )
                 self.audio.start()
 
@@ -601,6 +640,56 @@ class VoiceChatGUI:
     def _set_status(self, text: str):
         """Ustawia tekst na pasku statusu."""
         self._statusbar_label.configure(text=text)
+
+    # ------------------------------------------------------------------
+    # Zarządzanie urządzeniami audio
+    # ------------------------------------------------------------------
+    def _refresh_audio_devices(self):
+        """Odświeża listy dostępnych urządzeń audio."""
+        self._input_devices = AudioEngine.list_input_devices()
+        self._output_devices = AudioEngine.list_output_devices()
+
+        input_names = [f"{d['index']}: {d['name']}" for d in self._input_devices]
+        output_names = [f"{d['index']}: {d['name']}" for d in self._output_devices]
+
+        self._input_device_combo["values"] = input_names
+        self._output_device_combo["values"] = output_names
+
+        # Ustaw domyślne urządzenia
+        if input_names:
+            default_input = self._find_default_device_index(self._input_devices, "input")
+            self._input_device_combo.current(default_input)
+        if output_names:
+            default_output = self._find_default_device_index(self._output_devices, "output")
+            self._output_device_combo.current(default_output)
+
+    @staticmethod
+    def _find_default_device_index(devices: list[dict], kind: str) -> int:
+        """Znajduje indeks domyślnego urządzenia na liście."""
+        import sounddevice as sd
+        try:
+            defaults = sd.default.device
+            default_idx = defaults[0] if kind == "input" else defaults[1]
+            for i, d in enumerate(devices):
+                if d["index"] == default_idx:
+                    return i
+        except Exception:
+            pass
+        return 0
+
+    def _get_selected_input_device(self) -> int | None:
+        """Zwraca indeks wybranego urządzenia wejściowego."""
+        idx = self._input_device_combo.current()
+        if idx >= 0 and idx < len(self._input_devices):
+            return self._input_devices[idx]["index"]
+        return None
+
+    def _get_selected_output_device(self) -> int | None:
+        """Zwraca indeks wybranego urządzenia wyjściowego."""
+        idx = self._output_device_combo.current()
+        if idx >= 0 and idx < len(self._output_devices):
+            return self._output_devices[idx]["index"]
+        return None
 
     # ------------------------------------------------------------------
     # Zamykanie
