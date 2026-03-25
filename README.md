@@ -25,7 +25,7 @@ Aplikacja do rozmów głosowych peer-to-peer (P2P) z automatycznym przekierowani
 python -m venv venv
 source venv/bin/activate        # Linux/macOS (bash/zsh)
 source venv/bin/activate.fish   # Linux/macOS (fish)
-# venv\Scripts\activate         # Windows
+venv\Scripts\activate         # Windows
 
 # Zainstaluj zależności
 pip install -r requirements.txt
